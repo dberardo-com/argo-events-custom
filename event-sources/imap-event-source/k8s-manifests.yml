@@ -1,0 +1,76 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: imap-email-source
+spec:
+  generic:
+    new-email:
+      insecure: true
+      url: imap-event-source-svc:50051
+      config: |-
+        key1: value1
+        key2: value2
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: log-mail
+spec:
+  dependencies:
+    - eventName: new-email
+      eventSourceName: imap-email-source
+      name: imap-email-log
+  loggingFields: null
+  triggers:
+    - template:
+        log:
+          intervalSeconds: 10
+        name: log-mail
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: imap-event-source
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: imap-event-source
+  template:
+    spec:
+      containers:
+        - name: imap-event-source
+          image: mycustom_image
+          ports:
+            - containerPort: 50051
+              protocol: TCP
+          env:
+            - name: IMAP_SERVER
+              value: ""
+            - name: EMAIL_ACCOUNT
+              value: ""
+            - name: PASSWORD
+              value: ""
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          imagePullPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: imap-event-source-svc
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50051
+      targetPort: 50051
+  selector:
+    app: imap-event-source
